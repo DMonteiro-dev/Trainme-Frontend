@@ -24,13 +24,30 @@ const AdminUsersPage = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabValue>('trainer');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const LIMIT = 5;
+
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'trainer' as 'trainer' | 'admin' });
 
-  const params = useMemo(() => ({ role: activeTab, search: search || undefined, limit: 50 }), [activeTab, search]);
-  const { data: users, isLoading } = useAdminUsers(params);
+  // Reset page relative search/tab change
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const handleTabChange = (val: TabValue) => {
+    setActiveTab(val);
+    setPage(1);
+  };
+
+  const params = useMemo(() => ({ role: activeTab, search: search || undefined, page, limit: LIMIT }), [activeTab, search, page]);
+  const { data: usersResponse, isLoading } = useAdminUsers(params);
   const { mutateAsync: updateStatus } = useAdminUserStatusMutation();
   const { mutateAsync: createUser, isPending: creating } = useCreateAdminUser();
+
+  const users = usersResponse?.data || [];
+  const pagination = usersResponse?.pagination;
 
   const handleStatusToggle = async (id: string, current: 'active' | 'blocked' | 'pending') => {
     const next = current === 'blocked' ? 'active' : 'blocked';
@@ -71,7 +88,7 @@ const AdminUsersPage = () => {
             {tabs.map((tab) => (
               <button
                 key={tab.value}
-                onClick={() => setActiveTab(tab.value)}
+                onClick={() => handleTabChange(tab.value)}
                 style={{
                   background: tab.value === activeTab ? currentColors.primary : 'transparent',
                   color: tab.value === activeTab ? '#fff' : currentColors.textMuted,
@@ -156,7 +173,7 @@ const AdminUsersPage = () => {
               type="text"
               placeholder={`Pesquisar ${activeTab}s...`}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               style={{
                 border: 'none',
                 background: 'transparent',
@@ -232,6 +249,37 @@ const AdminUsersPage = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {pagination && pagination.pages > 1 && (
+            <div style={{
+              padding: theme.spacing.md,
+              borderTop: `1px solid ${currentColors.border}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={page === 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+              >
+                Anterior
+              </Button>
+              <span style={{ fontSize: '0.9rem', color: currentColors.textMuted }}>
+                Página {pagination.page} de {pagination.pages} (Total: {pagination.total})
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={page >= pagination.pages}
+                onClick={() => setPage(p => p + 1)}
+              >
+                Seguinte
+              </Button>
+            </div>
+          )}
         </Card>
       </div>
     </Page>

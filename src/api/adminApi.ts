@@ -16,9 +16,19 @@ export type CreateAdminUserPayload = {
   role: 'trainer' | 'admin';
 };
 
+export type PaginatedResponse<T> = {
+  data: T;
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+};
+
 export const fetchAdminUsers = async (params?: AdminUserFilters) => {
-  const response = await apiClient.get<AdminUser[]>('/api/admin/users', { params });
-  return unwrapResponse<AdminUser[]>(response.data);
+  const response = await apiClient.get<PaginatedResponse<AdminUser[]>>('/api/admin/users', { params });
+  return response.data; // Helper unwrapResponse might strip pagination, so we access data directly which contains data & pagination
 };
 
 export const fetchAdminUser = async (id: string) => {
