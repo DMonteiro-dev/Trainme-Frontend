@@ -26,6 +26,7 @@ import { theme } from '../../design-system/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { sessionsApi, Session } from '../../api/sessionsApi';
 import { fetchTrainerClients } from '../../api/trainerApi';
+import { SessionDetailsModal } from '../../components/sessions/SessionDetailsModal';
 
 export const TrainerSessionsPage = () => {
     const { currentColors } = useTheme();
@@ -139,36 +140,40 @@ export const TrainerSessionsPage = () => {
 
     const [activeTab, setActiveTab] = useState<'calendar' | 'pending' | 'history'>('calendar');
 
-    // Pending Sessions Query
+    // Pending Sessions Query (Upcoming + Overdue)
     const { data: pendingSessions } = useQuery<Session[]>({
         queryKey: ['sessions', 'pending'],
         queryFn: async () => {
-            // Fetch sessions that are past and status is 'scheduled'
-            // We'll use the existing list endpoint with specific params if possible or filter client-side if API is limited.
-            // Assuming API supports status and past filters or we fetch a range.
-            // Let's fetch the last 3 months + future for now alongside a specific status filter if API supports it.
-            // Based on session.service.ts, it supports startDate/endDate.
-            // Let's just fetch "past" sessions and filter client side for "scheduled".
+            // Fetch wide range to catch overdue and upcoming
             const data = await sessionsApi.list({
-                endDate: new Date().toISOString(), // Up to now
-                startDate: subMonths(new Date(), 6).toISOString() // Last 6 months
+                startDate: subMonths(new Date(), 1).toISOString(), // Look back 1 month for overdue
+                endDate: addMonths(new Date(), 6).toISOString()   // Look ahead 6 months
             });
-            return data.filter(s => s.status === 'scheduled');
+            return data
+                .filter(s => s.status === 'scheduled')
+                .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         },
         enabled: activeTab === 'pending'
     });
 
+    // History Query (Completed, Missed, Cancelled - PAST)
     const { data: historySessions } = useQuery<Session[]>({
         queryKey: ['sessions', 'history'],
         queryFn: async () => {
             const data = await sessionsApi.list({
-                endDate: new Date().toISOString(),
+                endDate: addMonths(new Date(), 6).toISOString(), // Allow seeing future completed/cancelled sessions
                 startDate: subMonths(new Date(), 6).toISOString()
             });
-            return data.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+            // Ensure we show all non-scheduled types, or scheduled ones that are in the past
+            return data
+                .filter(s => s.status !== 'scheduled' || new Date(s.startTime) < new Date())
+                .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
         },
         enabled: activeTab === 'history'
     });
+
+    // Detail Modal State
+    const [viewSession, setViewSession] = useState<Session | null>(null);
 
     if (isLoading) return <LoadingSpinner />;
 
@@ -307,6 +312,7 @@ export const TrainerSessionsPage = () => {
                                             deleteMutation.mutate(session._id);
                                         }
                                     }}
+                                    onClick={() => setViewSession(session)}
                                     currentColors={currentColors}
                                 />
                             ))
@@ -325,6 +331,7 @@ export const TrainerSessionsPage = () => {
                                 key={session._id}
                                 session={session}
                                 onDelete={() => deleteMutation.mutate(session._id)}
+                                onClick={() => setViewSession(session)}
                                 currentColors={currentColors}
                             />
                         ))
@@ -340,6 +347,7 @@ export const TrainerSessionsPage = () => {
                             session={session}
                             isHistory
                             onDelete={() => deleteMutation.mutate(session._id)}
+                            onClick={() => setViewSession(session)}
                             currentColors={currentColors}
                         />
                     ))}
@@ -368,6 +376,7 @@ export const TrainerSessionsPage = () => {
                                 onChange={(e) => setSelectedClientId(e.target.value)}
                             >
                                 <option value="">Selecione um cliente</option>
+                                <option value="create_new">+ Novo Cliente (placeholder)</option>
                                 {clients?.map(c => (
                                     <option key={c.id} value={c.id}>
                                         {c.name}
@@ -409,39 +418,51 @@ export const TrainerSessionsPage = () => {
                     </Card>
                 </div>
             )}
+
+            {/* Detail Modal */}
+            {viewSession && (
+                <SessionDetailsModal
+                    session={viewSession}
+                    isOpen={!!viewSession}
+                    onClose={() => setViewSession(null)}
+                    userRole="trainer"
+                />
+            )}
         </Page>
     );
 };
 
 // Helper Component for Session Card
-const SessionCard = ({ session, onDelete, currentColors, isHistory = false }: { session: Session, onDelete: () => void, currentColors: any, isHistory?: boolean }) => {
+const SessionCard = ({ session, onDelete, onClick, currentColors, isHistory = false }: { session: Session, onDelete: () => void, onClick?: () => void, currentColors: any, isHistory?: boolean }) => {
 
     const getStatusColor = () => {
-        if (!isHistory) return undefined;
-
         const date = parseISO(session.startTime);
         const now = new Date();
 
-        // Check if today (ignore time for "today" check)
-        if (isSameDay(date, now)) return theme.colors.warning; // Amarelo
+        // Completed/Missed/Cancelled logic (Prioritize explicit status)
+        if (session.status === 'completed') return theme.colors.success;
+        if (session.status === 'missed') return theme.colors.danger;
+        if (session.status === 'cancelled') return theme.colors.textMuted;
 
-        // Future
-        if (date > now) return theme.colors.success; // Verde
-
-        // Past
-        if (session.status === 'completed') return theme.colors.success; // Concluído (Good UX to show green)
-        return theme.colors.danger; // Passou e não concluído (Vermelho)
+        // Scheduled logic
+        if (isSameDay(date, now)) return theme.colors.warning; // Today (Yellow)
+        if (date > now) return theme.colors.primary; // Future (Blue)
+        return theme.colors.danger; // Overdue (Red)
     };
 
     const statusColor = getStatusColor();
 
     return (
-        <Card style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            borderLeft: statusColor ? `4px solid ${statusColor}` : undefined
-        }}>
+        <Card
+            onClick={onClick}
+            style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderLeft: statusColor ? `4px solid ${statusColor}` : undefined,
+                cursor: onClick ? 'pointer' : 'default'
+            }}
+        >
             <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
                 <div style={{
                     display: 'flex',
@@ -452,11 +473,9 @@ const SessionCard = ({ session, onDelete, currentColors, isHistory = false }: { 
                     borderRadius: theme.radii.md,
                     minWidth: 60
                 }}>
-                    {isHistory && (
-                        <span style={{ fontSize: 10, marginBottom: 2, color: theme.colors.textMuted }}>
-                            {format(parseISO(session.startTime), 'dd/MM')}
-                        </span>
-                    )}
+                    <span style={{ fontSize: 10, marginBottom: 2, color: theme.colors.textMuted }}>
+                        {format(parseISO(session.startTime), 'dd/MM')}
+                    </span>
                     <span style={{ fontWeight: 'bold', color: currentColors.text }}>
                         {format(parseISO(session.startTime), 'HH:mm')}
                     </span>
@@ -473,7 +492,18 @@ const SessionCard = ({ session, onDelete, currentColors, isHistory = false }: { 
                             {session.notes}
                         </p>
                     )}
-                    {!isHistory && session.status === 'scheduled' && new Date(session.startTime) < new Date() && (
+
+                    {/* Status Badges */}
+                    {session.status === 'completed' && (
+                        <span style={{ color: theme.colors.success, fontSize: 12, fontWeight: 600 }}>Concluída</span>
+                    )}
+                    {session.status === 'missed' && (
+                        <span style={{ color: theme.colors.danger, fontSize: 12, fontWeight: 600 }}>Faltou</span>
+                    )}
+                    {session.status === 'cancelled' && (
+                        <span style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: 600 }}>Cancelada</span>
+                    )}
+                    {session.status === 'scheduled' && new Date(session.startTime) < new Date() && (
                         <span style={{ color: theme.colors.warning, fontSize: 12, fontWeight: 600 }}>Pendente de conclusão</span>
                     )}
                 </div>

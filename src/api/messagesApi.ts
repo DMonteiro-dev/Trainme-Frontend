@@ -22,6 +22,11 @@ export const markMessageRead = async (messageId: string) => {
   return unwrapResponse<Message>(response.data);
 };
 
+export const markConversationRead = async (userId: string) => {
+  const response = await apiClient.patch<{ success: boolean }>(`/api/messages/conversation/${userId}/read`, {});
+  return unwrapResponse<{ success: boolean }>(response.data);
+};
+
 export const toggleMessageLike = async (messageId: string) => {
   const response = await apiClient.post<Message>(`/api/messages/${messageId}/like`, {});
   return unwrapResponse<Message>(response.data);

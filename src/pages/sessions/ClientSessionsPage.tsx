@@ -26,11 +26,16 @@ import { useTheme } from '../../context/ThemeContext';
 import { sessionsApi, Session } from '../../api/sessionsApi';
 import { SessionCompletionModal } from '../../components/sessions/SessionCompletionModal';
 
+import { SessionDetailsModal } from '../../components/sessions/SessionDetailsModal';
+
 export const ClientSessionsPage = () => {
   const { currentColors } = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+
+  // Modals
+  const [sessionToComplete, setSessionToComplete] = useState<Session | null>(null);
+  const [sessionToView, setSessionToView] = useState<Session | null>(null);
 
   // Fetch Sessions for the current month view
   const { data: sessions, isLoading } = useQuery<Session[]>({
@@ -163,14 +168,11 @@ export const ClientSessionsPage = () => {
             selectedDaySessions.map((session: Session) => {
               const sessionDate = parseISO(session.startTime);
               const isExpired = differenceInHours(new Date(), sessionDate) > 24;
-              const isClickable = !isFuture(sessionDate) && !isExpired && session.status !== 'completed' && session.status !== 'missed';
-              // Actually allow clicking completed/missed to view details? Modal logic suggests it's for completion only.
-              // Existing code: !isFuture -> setSelectedSession. So it allows re-opening completed?
-              // Existing Modal has "A guardar..." so it supports updates.
-              // But '24h' restriction applies to update too.
-              // So if Completed and > 24h, can we edit? Logic says "Cannot mark... as completed".
-              // If already completed, maybe read-only?
-              // For now, let's just disable opening the completion modal if expired.
+
+              // Determine interaction mode
+              const isCompeteable = !isFuture(sessionDate) && !isExpired && session.status === 'scheduled';
+              const isViewable = session.status === 'completed' || session.status === 'missed' || session.status === 'cancelled';
+              const isClickable = isCompeteable || isViewable;
 
               return (
                 <Card
@@ -189,8 +191,10 @@ export const ClientSessionsPage = () => {
                     opacity: isExpired && session.status === 'scheduled' ? 0.6 : 1
                   }}
                   onClick={() => {
-                    if (isClickable) {
-                      setSelectedSession(session);
+                    if (isCompeteable) {
+                      setSessionToComplete(session);
+                    } else if (isViewable) {
+                      setSessionToView(session);
                     }
                   }}
                 >
@@ -226,7 +230,7 @@ export const ClientSessionsPage = () => {
                       {session.status === 'scheduled' && (
                         <span style={{ fontSize: theme.typography.sizes.xs, color: isExpired ? theme.colors.textMuted : theme.colors.primary, display: 'flex', alignItems: 'center', gap: 4 }}>
                           {isExpired ? <XCircle size={12} /> : <Clock size={12} />}
-                          {isExpired ? 'Expirado (24h)' : 'Agendado'}
+                          {isExpired ? 'Expirado (24h)' : 'Toque para registar'}
                         </span>
                       )}
                     </div>
@@ -238,11 +242,24 @@ export const ClientSessionsPage = () => {
         </div>
       </div>
 
-      {selectedSession && (
+      {sessionToComplete && (
         <SessionCompletionModal
-          session={selectedSession}
-          isOpen={!!selectedSession}
-          onClose={() => setSelectedSession(null)}
+          session={sessionToComplete}
+          isOpen={!!sessionToComplete}
+          onClose={() => setSessionToComplete(null)}
+        />
+      )}
+
+      {sessionToView && (
+        <SessionDetailsModal
+          session={sessionToView}
+          isOpen={!!sessionToView}
+          onClose={() => setSessionToView(null)}
+          userRole="client"
+          onEdit={() => {
+            setSessionToView(null);
+            setSessionToComplete(sessionToView);
+          }}
         />
       )}
     </Page>

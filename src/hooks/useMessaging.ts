@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchConversation, fetchConversations, markMessageRead, sendMessage } from '../api/messagesApi';
+import { fetchConversation, fetchConversations, markMessageRead, sendMessage, markConversationRead } from '../api/messagesApi';
 
 export const messagingKeys = {
   conversations: ['messages', 'conversations'] as const,
@@ -36,7 +36,18 @@ export const useMarkMessageRead = () => {
     onSuccess: (message) => {
       queryClient.invalidateQueries({ queryKey: messagingKeys.conversations });
       const senderId = typeof message.senderId === 'string' ? message.senderId : message.senderId._id;
-      queryClient.invalidateQueries({ queryKey: messagingKeys.conversation(senderId) });
+      // Also update the specific message in the cache if needed, but invalidation is safer
+      // queryClient.invalidateQueries({ queryKey: messagingKeys.conversation(senderId) }); 
     },
+  });
+};
+
+export const useMarkConversationRead = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => import('../api/messagesApi').then(api => api.markConversationRead(userId)), // Dynamic import to avoid circular dep if any, or just direct
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: messagingKeys.conversations });
+    }
   });
 };

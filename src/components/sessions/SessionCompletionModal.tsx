@@ -18,11 +18,20 @@ export const SessionCompletionModal = ({ session, isOpen, onClose }: SessionComp
     const { currentColors } = useTheme();
     const queryClient = useQueryClient();
 
-    const [status, setStatus] = useState<'completed' | 'missed'>('completed');
-    const [feedback, setFeedback] = useState('');
-    const [failureReason, setFailureReason] = useState('');
+    const [status, setStatus] = useState<'completed' | 'missed'>(
+        (session.status === 'missed' ? 'missed' : 'completed')
+    );
+    const [feedback, setFeedback] = useState(session.feedback || '');
+    const [failureReason, setFailureReason] = useState(session.failureReason || '');
     const [evidenceImage, setEvidenceImage] = useState<File | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+    // Initialize preview with existing image if available
+    const [previewUrl, setPreviewUrl] = useState<string | null>(
+        session.evidenceImage
+            ? (session.evidenceImage.startsWith('http') ? session.evidenceImage : `${import.meta.env.VITE_API_URL}${session.evidenceImage}`)
+            : null
+    );
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { mutate, isPending } = useMutation({

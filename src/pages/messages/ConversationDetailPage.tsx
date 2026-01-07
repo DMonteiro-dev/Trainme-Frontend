@@ -7,7 +7,7 @@ import { TextField } from '../../design-system/components/TextField';
 import { theme } from '../../design-system/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { useConversation, useMarkMessageRead, useSendMessage } from '../../hooks/useMessaging';
+import { useConversation, useMarkMessageRead, useSendMessage, useMarkConversationRead } from '../../hooks/useMessaging';
 import { useSocket } from '../../context/SocketContext';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { toggleMessageLike } from '../../api/messagesApi';
@@ -28,7 +28,15 @@ const ConversationDetailPage = () => {
 
   const { mutateAsync: send, isPending } = useSendMessage();
   const { mutate: markRead } = useMarkMessageRead();
+  const { mutate: markConversationRead } = useMarkConversationRead();
   const { socket } = useSocket();
+
+  // Mark conversation as read when messages load
+  useEffect(() => {
+    if (userId && messages && messages.length > 0) {
+      markConversationRead(userId);
+    }
+  }, [userId, messages?.length, markConversationRead]);
   const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
