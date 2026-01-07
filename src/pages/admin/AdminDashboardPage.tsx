@@ -1,13 +1,15 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Page } from '../../design-system/components/Page';
 import { Card } from '../../design-system/components/Card';
 import { Button } from '../../design-system/components/Button';
 import { theme } from '../../design-system/theme';
 import { useAdminClients, useAdminTrainers } from '../../hooks/useAdminRelations';
 import { useAdminTrainerChangeRequests } from '../../hooks/useTrainerChangeRequests';
-import { Users, Dumbbell, UserCheck, UserX, AlertCircle, ArrowRight, Shield, Activity } from 'lucide-react';
+import { Users, Dumbbell, UserCheck, UserX, AlertCircle, ArrowRight, Shield, Activity, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
+import { ReviewRequestModal } from './components/ReviewRequestModal';
+import { TrainerChangeRequest } from '../../types';
 
 const AdminDashboardPage = () => {
   const navigate = useNavigate();
@@ -15,6 +17,8 @@ const AdminDashboardPage = () => {
   const { data: trainers } = useAdminTrainers();
   const { data: clients } = useAdminClients();
   const { data: pendingRequests } = useAdminTrainerChangeRequests({ status: 'pending' });
+
+  const [selectedRequest, setSelectedRequest] = useState<TrainerChangeRequest | null>(null);
 
   const totalTrainers = trainers?.length ?? 0;
   const totalClients = clients?.length ?? 0;
@@ -107,7 +111,7 @@ const AdminDashboardPage = () => {
                   <th style={{ padding: theme.spacing.md, fontSize: '0.85rem', color: currentColors.textMuted, fontWeight: 600 }}>CLIENTE</th>
                   <th style={{ padding: theme.spacing.md, fontSize: '0.85rem', color: currentColors.textMuted, fontWeight: 600 }}>TREINADOR ATUAL</th>
                   <th style={{ padding: theme.spacing.md, fontSize: '0.85rem', color: currentColors.textMuted, fontWeight: 600 }}>NOVO TREINADOR</th>
-                  <th style={{ padding: theme.spacing.md, fontSize: '0.85rem', color: currentColors.textMuted, fontWeight: 600 }}>MOTIVO</th>
+                  <th style={{ padding: theme.spacing.md, fontSize: '0.85rem', color: currentColors.textMuted, fontWeight: 600 }}>AÇÕES</th>
                 </tr>
               </thead>
               <tbody>
@@ -117,8 +121,11 @@ const AdminDashboardPage = () => {
                       <td style={{ padding: theme.spacing.md, fontWeight: 500 }}>{request.client?.name ?? 'N/A'}</td>
                       <td style={{ padding: theme.spacing.md, color: currentColors.textMuted }}>{request.currentTrainer?.name ?? '—'}</td>
                       <td style={{ padding: theme.spacing.md, color: currentColors.primary, fontWeight: 500 }}>{request.requestedTrainer?.name ?? 'Indefinido'}</td>
-                      <td style={{ padding: theme.spacing.md, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: currentColors.textMuted }}>
-                        {request.reason}
+                      <td style={{ padding: theme.spacing.md }}>
+                        <Button size="sm" variant="secondary" onClick={() => setSelectedRequest(request)}>
+                          <MessageSquare size={14} style={{ marginRight: 6 }} />
+                          Responder
+                        </Button>
                       </td>
                     </tr>
                   ))
@@ -206,6 +213,14 @@ const AdminDashboardPage = () => {
         </div>
 
       </div>
+
+      {selectedRequest && (
+        <ReviewRequestModal
+          request={selectedRequest}
+          isOpen={!!selectedRequest}
+          onClose={() => setSelectedRequest(null)}
+        />
+      )}
     </Page>
   );
 };
