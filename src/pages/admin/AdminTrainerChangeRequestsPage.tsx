@@ -11,6 +11,7 @@ import {
 } from '../../hooks/useTrainerChangeRequests';
 import { useTheme } from '../../context/ThemeContext';
 import type { TrainerChangeRequestStatus } from '../../types';
+import { useNotification } from '../../context/NotificationContext';
 
 const statusLabels: Record<TrainerChangeRequestStatus, string> = {
   pending: 'Pendente',
@@ -46,15 +47,28 @@ const AdminTrainerChangeRequestsPage = () => {
   const { mutateAsync: approve, isPending: approving } = useApproveTrainerChangeRequest();
   const { mutateAsync: reject, isPending: rejecting } = useRejectTrainerChangeRequest();
 
+  const { currentColors } = useTheme();
+  const { showToast } = useNotification(); // Add this hook
+
   const handleApprove = async (id: string) => {
-    await approve(id);
+    try {
+      await approve(id);
+      showToast('Pedido aprovado com sucesso!');
+    } catch (error: any) {
+      console.error('Error approving request:', error);
+      showToast(error.response?.data?.message || 'Erro ao aprovar pedido');
+    }
   };
 
   const handleReject = async (id: string) => {
-    await reject(id);
+    try {
+      await reject(id);
+      showToast('Pedido rejeitado com sucesso!');
+    } catch (error: any) {
+      console.error('Error rejecting request:', error);
+      showToast(error.response?.data?.message || 'Erro ao rejeitar pedido');
+    }
   };
-
-  const { currentColors } = useTheme();
 
   return (
     <Page title="Pedidos de troca de treinador" description="Revisa e decide os pedidos submetidos pelos clientes.">
